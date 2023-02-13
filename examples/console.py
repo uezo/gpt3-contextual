@@ -1,5 +1,5 @@
 import asyncio
-from gpt3contextual import ContextualChat
+from gpt3contextual import ContextualChat, ContextManager
 
 
 """
@@ -24,22 +24,25 @@ context_key = "user1234567890"  # set a key that identifies the user when you us
 
 
 async def main():
-    cc = ContextualChat(
-        openai_apikey,
-
+    cm = ContextManager(
         # Human with AI
         username="Human",
         agentname="AI",
 
-        # # Brother with Sister in Japanese
+        # Brother with Sister in Japanese
         # username="兄",
         # agentname="妹",
         # chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。"
     )
 
+    cc = ContextualChat(
+        openai_apikey,
+        context_manager=cm
+    )
+
     while True:
-        text = input(f"{cc.username}> ")
+        text = input(f"{cm.username}> ")
         resp, _ = await cc.chat(context_key, text)
-        print(f"{cc.agentname}> {resp}")
+        print(f"{cm.agentname}> {resp}")
 
 asyncio.run(main())

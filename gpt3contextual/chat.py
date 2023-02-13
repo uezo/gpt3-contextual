@@ -12,48 +12,50 @@ class CompletionException(Exception):
 
 class ContextualChat:
     def __init__(
-        self, api_key: str,
-        context_count: int = 6,
-        username: str = "customer",
-        agentname: str = "agent",
-        chat_description: str = None,
+        self,
+        api_key: str,
+        context_manager: ContextManager,
+        *,
         engine: str = "text-davinci-003",
         temperature: float = 0.5,
         max_tokens: int = 2000,
-        context_manager: ContextManager = None
+        **completion_params
     ) -> None:
 
         self.api_key = api_key
-        self.context_count = context_count
-        self.username = username
-        self.agentname = agentname
-        self.chat_description = chat_description
+        self.context_manager = context_manager
         self.engine = engine
         self.temperature = temperature
         self.max_tokens = max_tokens
-        self.context_manager = context_manager or ContextManager()
+        self.completion_params = completion_params
 
-    async def chat(self, context_key: str, text: str) -> tuple[str, OpenAIObject]:
+    async def chat(
+        self,
+        context_key: str,
+        text: str
+
+    ) -> tuple[str, OpenAIObject]:
         context = self.context_manager.get(context_key)
-        prompt = f"{self.chat_description}\n" + \
-                 f"{context.get_histories(self.context_count)}\n" + \
-                 f"{self.username}:{text}\n{self.agentname}:"
+        prompt = f"{context.chat_description}\n" + \
+                 f"{context.get_histories()}\n" + \
+                 f"{context.username}:{text}\n{context.agentname}:"
 
         completion = await Completion.acreate(
             api_key=self.api_key,
             engine=self.engine,
             temperature=self.temperature,
-            max_tokens=self.max_tokens,    # prompt(actual) + completion(this value) must be < 4097 for davinci
+            max_tokens=self.max_tokens,
             prompt=prompt,
-            stop=[f"{self.username}:", f"{self.agentname}:"]
+            stop=[f"{context.username}:", f"{context.agentname}:"],
+            **self.completion_params
         )
 
         if "choices" in completion:
-            response_text = completion["choices"][0]["text"]
+            response_text = completion["choices"][0]["text"].strip()
 
             # Add request and response to context
-            context.add_history(f"{self.username}:{text}")
-            context.add_history(f"{self.agentname}:{response_text}")
+            context.add_history(f"{context.username}:{text}")
+            context.add_history(f"{context.agentname}:{response_text}")
             self.context_manager.set(context)
 
             return response_text, completion

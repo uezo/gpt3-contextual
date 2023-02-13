@@ -5,13 +5,12 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from linebot import AsyncLineBotApi, WebhookParser
 from linebot.aiohttp_async_http_client import AiohttpAsyncHttpClient
 from linebot.models import MessageEvent, TextMessage
-from gpt3contextual import ContextualChat
+from gpt3contextual import ContextualChat, ContextManager
 
 
 openai_apikey = "SET_YOUR_OPENAI_API_KEY"
 channel_access_token = "<YOUR CHANNEL ACCESS TOKEN>"
 channel_secret = "<YOUR CHANNEL SECRET>"
-
 
 stream_handler = logging.StreamHandler()
 stream_handler.setLevel(logging.INFO)
@@ -26,17 +25,14 @@ line_api = AsyncLineBotApi(
     async_http_client=client
 )
 parser = WebhookParser(channel_secret=channel_secret)
-contextual_chat = ContextualChat(
-    openai_apikey,
-
-    # # Human with AI
-    # username="Human",
-    # agentname="AI",
-
-    # Brother with Sister in Japanese
+context_manager = ContextManager(
     username="兄",
     agentname="妹",
-    chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。"
+    chat_description="仲良しなので丁寧語を使わずに話してください。"
+)
+contextual_chat = ContextualChat(
+    openai_apikey,
+    context_manager=context_manager
 )
 
 
@@ -48,12 +44,19 @@ async def handle_events(events):
                     ev.source.user_id,
                     ev.message.text
                 )
-                await line_api.reply_message(
-                    ev.reply_token,
-                    TextMessage(text=resp))
 
             except Exception as ex:
-                logger.error(f"Error: {ex}\n{traceback.format_exc()}")
+                logger.error(f"Chat error: {ex}\n{traceback.format_exc()}")
+                resp = "😣"
+
+            try:
+                await line_api.reply_message(
+                    ev.reply_token,
+                    TextMessage(text=resp)
+                )
+
+            except Exception as ex:
+                logger.error(f"LINE error: {ex}\n{traceback.format_exc()}")
 
 
 app = FastAPI()
