@@ -2,5 +2,7 @@ from .chat import (
     ContextualChat,
     CompletionException
 )
-from .context import ContextManager
-
+from .context import (
+    ContextManager,
+    SQLiteContextManager
+)
