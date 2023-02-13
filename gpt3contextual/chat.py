@@ -61,8 +61,8 @@ class ContextualChat:
             return response_text, completion
 
         else:
-            # Remove to start new context in next turn
-            self.context_manager.remove(context.key)
+            # Reset histories to start new context in next turn
+            self.context_manager.reset(context.key)
             raise CompletionException(
                 message="Completion returns an error",
                 completion_response=completion
