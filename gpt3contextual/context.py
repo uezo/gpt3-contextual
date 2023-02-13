@@ -82,6 +82,7 @@ class ContextManager:
             context.chat_description = chat_description
         if history_count:
             history_count = history_count
+        context.histories = []
 
         self.set(context)
 
