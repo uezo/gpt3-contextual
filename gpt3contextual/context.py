@@ -48,8 +48,9 @@ class ContextManager:
     def get(self, key: str) -> Context:
         if key in self.contexts:
             if datetime.utcnow().timestamp() \
-                    - self.contexts[key].updated_at <= self.timeout:
-                return deepcopy(self.contexts[key])
+                    - self.contexts[key].updated_at > self.timeout:
+                self.contexts[key].histories = []
+            return deepcopy(self.contexts[key])
 
         return Context(
             key,
