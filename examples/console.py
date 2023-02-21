@@ -42,7 +42,7 @@ async def main():
 
     while True:
         text = input(f"{cm.username}> ")
-        resp, _ = await cc.chat(context_key, text)
+        resp, _, _ = await cc.chat(context_key, text)
         print(f"{cm.agentname}> {resp}")
 
 asyncio.run(main())

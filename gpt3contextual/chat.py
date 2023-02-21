@@ -70,4 +70,4 @@ class ContextualChat:
 
         self.update_context(context, text, response_text, completion)
 
-        return response_text, completion
+        return response_text, prompt, completion

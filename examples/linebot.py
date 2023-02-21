@@ -40,7 +40,7 @@ async def handle_events(events):
     for ev in events:
         if isinstance(ev, MessageEvent):
             try:
-                resp, _ = await contextual_chat.chat(
+                resp, _, _ = await contextual_chat.chat(
                     ev.source.user_id,
                     ev.message.text
                 )
