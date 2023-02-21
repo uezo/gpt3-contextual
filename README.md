@@ -22,7 +22,7 @@ async def main():
 
     while True:
         text = input("Human> ")
-        resp, _ = await cc.chat("user1234567890", text)
+        resp, prompt, completion = await cc.chat("user1234567890", text)
         print(f"AI> {resp}")
 
 asyncio.run(main())
@@ -85,6 +85,42 @@ cm = ContextManager(username="Question", agentname="Answer", chat_description="C
 # Customizing end of sentence (Japanese)
 cm = ContextManager(username="兄", agentname="妹", chat_description="これは兄と妹との会話です。妹は語尾に「ニャ」をつけて話します。")
 ```
+
+
+# 🔥 Host your own API server
+
+Set your OpenAI API key and secret access key for configuration endpoints to `example/api.py`
+
+```python
+# Settings
+openai_apikey = "SET_YOUR_OPENAI_API_KEY"
+config_access_key = "CHANGE_THIS_VALUE_AS_YOU_LIKE"
+```
+
+Install dependencies.
+
+```bash
+$ pip install uvicorn fastapi
+```
+
+Run.
+
+```bash
+$ uvicorn run:app
+```
+
+See API document and try APIs. 👉 http://127.0.0.1:8000/docs
+
+If you want to change IP address or port, start uvicorn like this:
+
+```bash
+$ uvicorn run:app --host 0.0.0.0 --port 80
+```
+
+And, if you want to run this API in multi-process, use database for context management.
+See `gpt3contextual.context.SQLiteContextManager` and customize it for the RDBMS you want to use.
+
+Enjoy your own contextual GPT-3 API👍
 
 
 # 🥪 How it works
