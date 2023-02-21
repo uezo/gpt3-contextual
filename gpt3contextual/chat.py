@@ -4,7 +4,7 @@ from openai.openai_object import OpenAIObject
 
 
 class CompletionException(Exception):
-    def __init__(self, completion_response, *args: object) -> None:
+    def __init__(self, *args: object, completion_response) -> None:
         super().__init__(*args)
 
         self.completion_response = completion_response
