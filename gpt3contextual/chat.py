@@ -71,3 +71,26 @@ class ContextualChat:
         self.update_context(context, text, response_text, completion)
 
         return response_text, prompt, completion
+
+    def chat_sync(self, context_key: str, text: str) -> tuple[str, OpenAIObject]:
+        context = self.context_manager.get(context_key)
+
+        prompt = self.make_prompt(context, text)
+
+        completion = Completion.create(
+            api_key=self.api_key,
+            engine=self.engine,
+            temperature=self.temperature,
+            max_tokens=self.max_tokens,
+            prompt=prompt,
+            stop=[f"{context.username}:", f"{context.agentname}:"],
+            **self.completion_params
+        )
+
+        response_text = \
+            completion["choices"][0]["text"].strip() \
+            if "choices" in completion else None
+
+        self.update_context(context, text, response_text, completion)
+
+        return response_text, prompt, completion
