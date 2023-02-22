@@ -1,11 +1,11 @@
 import aiohttp
 import logging
 import traceback
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from gpt3contextual import ContextualChat, ContextManager
+from gpt3contextual import ContextualChat, ContextManager, CompletionException
 
 
 # Settings
@@ -16,11 +16,12 @@ config_access_key = "CHANGE_THIS_VALUE_AS_YOU_LIKE"
 # Schemas
 class ChatRequest(BaseModel):
     text: str = Field(..., title="Request text", example="Hello", description="Request text from user to GPT-3")
+    completion_params: dict = Field(None, title="Parameters for Completion API", example={}, description="Parameters for Completion API")
 
 
 class ChatResponse(BaseModel):
     text: str = Field(..., title="Response text", example="Hi", description="Response text from GPT-3 to user")
-    prompt: str = Field(..., title="Prompt text", example="Hi", description="Prompt text sent to GPT-3")
+    params: dict = Field(..., title="Actual parameters sent to Completion API", example={}, description="Actual parameters sent to Completion API")
     completion: dict = Field(..., title="Completion info", example={"choices": [{"text": "hi"}]}, description="Whole completion info from OpenAI")
 
 
@@ -81,6 +82,17 @@ async def app_shutdown():
     await session.close()
 
 
+# Exception handlers
+@app.exception_handler(CompletionException)
+async def handle_completion_exception(request: Request, ex: CompletionException):
+    return JSONResponse(content={"error": str(ex), "completion_response": ex.completion_response}, status_code=500)
+
+
+@app.exception_handler(Exception)
+async def handle_exception(request: Request, ex: Exception):
+    return JSONResponse(content={"error": "Internal Server Error"}, status_code=500)
+
+
 # FastAPI Routers
 @app.post("/chat/{context_key}",
           response_model=ChatResponse,
@@ -91,16 +103,22 @@ async def chat(request: ChatRequest, context_key: str):
         if not request.text:
             return JSONResponse(content={"error": "text is required"}, status_code=400)
 
-        resp, prompt, completion = await contextual_chat.chat(
+        resp, params, completion = await contextual_chat.chat(
             context_key,
-            request.text
+            request.text,
+            **(request.completion_params or {})
         )
 
-        return ChatResponse(text=resp, prompt=prompt, completion=completion)
+        del params["api_key"]
+        return ChatResponse(text=resp, params=params, completion=completion)
+
+    except CompletionException as ex:
+        logger.error(f"Completion error: {ex}\n{traceback.format_exc()}")
+        raise ex
 
     except Exception as ex:
-        logger.error(f"Chat error: {ex}\n{traceback.format_exc()}")
-        return JSONResponse(content={"error": "server error"}, status_code=500)
+        logger.error(f"Server error: {ex}\n{traceback.format_exc()}")
+        raise ex
 
 
 @app.put("/context/config",
