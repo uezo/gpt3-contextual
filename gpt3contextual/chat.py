@@ -1,3 +1,4 @@
+from copy import deepcopy
 from .context import Context, ContextManager
 from openai import Completion
 from openai.openai_object import OpenAIObject
@@ -34,6 +35,22 @@ class ContextualChat:
                f"{context.get_histories()}\n" + \
                f"{context.username}:{text}\n{context.agentname}:"
 
+    def make_params(self, context: Context, prompt: str, completion_params: dict) -> dict:
+        params = deepcopy(self.completion_params) if self.completion_params else {}
+
+        params["api_key"] = self.api_key
+        params["engine"] = self.engine
+        params["temperature"] = self.temperature
+        params["max_tokens"] = self.max_tokens
+        params["stop"] = [f"{context.username}:", f"{context.agentname}:"]
+        params["prompt"] = prompt
+
+        if completion_params:
+            for k, v in completion_params.items():
+                params[k] = v
+
+        return params
+
     def update_context(self, context: Context, request_text: str, response_text: str, completion: dict):
         if response_text:
             # Add request and response to context
@@ -49,20 +66,18 @@ class ContextualChat:
                 completion_response=completion
             )
 
-    async def chat(self, context_key: str, text: str) -> tuple[str, OpenAIObject]:
+    async def chat(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
         context = self.context_manager.get(context_key)
-
         prompt = self.make_prompt(context, text)
+        params = self.make_params(context, prompt, completion_params)
 
-        completion = await Completion.acreate(
-            api_key=self.api_key,
-            engine=self.engine,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            prompt=prompt,
-            stop=[f"{context.username}:", f"{context.agentname}:"],
-            **self.completion_params
-        )
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = await Completion.acreate(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
 
         response_text = \
             completion["choices"][0]["text"].strip() \
@@ -70,22 +85,20 @@ class ContextualChat:
 
         self.update_context(context, text, response_text, completion)
 
-        return response_text, prompt, completion
+        return response_text, params, completion
 
-    def chat_sync(self, context_key: str, text: str) -> tuple[str, OpenAIObject]:
+    def chat_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
         context = self.context_manager.get(context_key)
-
         prompt = self.make_prompt(context, text)
+        params = self.make_params(context, prompt, completion_params)
 
-        completion = Completion.create(
-            api_key=self.api_key,
-            engine=self.engine,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens,
-            prompt=prompt,
-            stop=[f"{context.username}:", f"{context.agentname}:"],
-            **self.completion_params
-        )
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = Completion.create(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
 
         response_text = \
             completion["choices"][0]["text"].strip() \
@@ -93,4 +106,4 @@ class ContextualChat:
 
         self.update_context(context, text, response_text, completion)
 
-        return response_text, prompt, completion
+        return response_text, params, completion
