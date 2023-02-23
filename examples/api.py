@@ -177,7 +177,7 @@ class OpenApiInfo:
 
         openapi_info = get_openapi(
             title="GPT-3 Contextual API",
-            version="0.4",
+            version="0.5",
             description="Contextual chat with GPT-3 of OpenAI API.",
             servers=[{"description": "This Server", "url": "/"}],
             routes=self.app_routes
