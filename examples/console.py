@@ -1,4 +1,5 @@
 import asyncio
+from uuid import uuid4
 from gpt3contextual import ContextualChat, ContextManager
 
 
@@ -20,7 +21,8 @@ AI>  Great! Your order has been placed. Enjoy your meal!
 """
 
 openai_apikey = "SET_YOUR_OPENAI_API_KEY"
-context_key = "user1234567890"  # set a key that identifies the user when you use this library for chatbot
+context_key = str(uuid4())  # set a key that identifies the user when you use this library for chatbot
+print(f"current context_key: {context_key}")
 
 
 async def main():
@@ -29,10 +31,10 @@ async def main():
         username="Human",
         agentname="AI",
 
-        # Brother with Sister in Japanese
+        # # Brother with Sister in Japanese
         # username="兄",
         # agentname="妹",
-        # chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。"
+        # chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。",
     )
 
     cc = ContextualChat(

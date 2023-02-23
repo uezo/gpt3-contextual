@@ -1,8 +1,8 @@
 from .chat import (
     ContextualChat,
-    CompletionException
+    CompletionException,
+    ContextManager
 )
-from .context import (
-    ContextManager,
-    SQLiteContextManager
+from .models import (
+    Context
 )

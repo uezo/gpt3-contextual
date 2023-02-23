@@ -66,8 +66,9 @@ And, you can customize OpenAI specs to pass the parameters to `ContextualChat`.
 See also https://platform.openai.com/docs/api-reference/completions to understand more.
 
 - `api_key`: str : API key for OpenAI API.
+- `connection_str`: str : SQLAlchemy connection string for database. Default=`sqlite:///gpt3contextual.db`.
 - `context_manager`: ContextManager : ContextManager you build.
-- `engine`: str : The engine(model) to use. Default=`text-davinci-003`.
+- `model`: str : The AI model to use. Default=`text-davinci-003`.
 - `temperature`: float : What sampling temperature to use, between 0 and 2. Default=`0.5`.
 - `max_tokens`: int : The maximum number of tokens to generate in the completion. Default=`2000`.
 - `**completion_params`: Other parameters for completions if you want to set.

@@ -1,69 +1,81 @@
-from gpt3contextual.context import Context, ContextManager
+import pytest
+import json
+import time
+from uuid import uuid4
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from gpt3contextual.models import Context, create_tables
+from gpt3contextual.chat import ContextManager
+
+connection_str = "sqlite:///test_context.db"
 
 
-class TestContext:
-    def test_get_histories(self):
-        context = Context(
-            key="1234",
-            username="Alice",
-            agentname="Bob",
-            chat_description="A conversation between Alice and Bob",
-            history_count=6,
-            histories=["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"]
-        )
-        assert context.get_histories() == "line03\nline04\nline05\nline06\nline07\nline08"
-        context.history_count = 4
-        assert context.get_histories() == "line05\nline06\nline07\nline08"
-        context.history_count = 8
-        assert context.get_histories() == "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08"
-        context.history_count = 10
-        assert context.get_histories() == "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08"
-        context.history_count = 0
-        assert context.get_histories() == "line01\nline02\nline03\nline04\nline05\nline06\nline07\nline08"
-
-    def test_add_history(self):
-        context = Context(
-            key="1234",
-            username="Alice",
-            agentname="Bob",
-            chat_description="A conversation between Alice and Bob",
-            history_count=6,
-            histories=["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"]
-        )
-        context.add_history("line09")
-        assert context.get_histories() == "line04\nline05\nline06\nline07\nline08\nline09"
+@pytest.fixture
+def get_session():
+    engine = create_engine(connection_str)
+    create_tables(engine)
+    return sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
 class TestContextManager:
-    def test_get(self):
+    def test_get(self, get_session):
+        key1 = str(uuid4())
+        key2 = str(uuid4())
+
         manager = ContextManager(
-            timeout=300,
+            timeout=3,
             username="Alice",
             agentname="Bob",
             chat_description="A conversation between Alice and Bob",
             history_count=6,
         )
-        context = manager.get("1234")
+
+        session = get_session()
+
+        context = manager.get(session, key1)
         assert context.username == "Alice"
         assert context.agentname == "Bob"
         assert context.chat_description == "A conversation between Alice and Bob"
         assert context.history_count == 6
 
-        manager.set(Context(
-            key="2345",
+        manager.set(session, Context(
+            key=key2,
             username="A",
             agentname="B",
             chat_description="A and B",
             history_count=10,
-            histories=["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"]
+            histories=json.dumps(["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"])
         ))
-        context = manager.get("2345")
+        context = manager.get(session, key2)
         assert context.username == "A"
         assert context.agentname == "B"
         assert context.chat_description == "A and B"
         assert context.history_count == 10
+        assert context.get_histories() == "\n".join(["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"])
 
-    def test_set(self):
+        time.sleep(1)  # shorter than timeout(3)
+
+        context = manager.get(session, key2)
+        assert context.username == "A"
+        assert context.agentname == "B"
+        assert context.chat_description == "A and B"
+        assert context.history_count == 10
+        assert context.get_histories() == "\n".join(["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"])
+
+        time.sleep(5)  # longer than timeout(3)
+
+        context = manager.get(session, key2)
+        assert context.username == "A"
+        assert context.agentname == "B"
+        assert context.chat_description == "A and B"
+        assert context.history_count == 10
+        assert context.get_histories() == ""
+
+        session.close()
+
+    def test_set(self, get_session):
+        key = str(uuid4())
+
         manager = ContextManager(
             timeout=300,
             username="Alice",
@@ -72,17 +84,22 @@ class TestContextManager:
             history_count=6,
         )
         context = Context(
-            key="1234",
+            key=key,
             username="Alice",
             agentname="Bob",
             chat_description="A conversation between Alice and Bob",
             history_count=6,
-            histories=["hi", "hello", "how are you", "goodbye"]
+            histories=json.dumps(["hi", "hello", "how are you", "goodbye"])
         )
-        manager.set(context)
-        assert manager.get("1234").histories == context.histories
+        session = get_session()
+        manager.set(session, context)
+        assert manager.get(session, key).histories == context.histories
 
-    def test_reset(self):
+        session.close()
+
+    def test_reset(self, get_session):
+        key = str(uuid4())
+
         manager = ContextManager(
             timeout=300,
             username="Alice",
@@ -91,23 +108,28 @@ class TestContextManager:
             history_count=6,
         )
         context = Context(
-            key="1234",
+            key=key,
             username="Alice",
             agentname="Bob",
             chat_description="A conversation between Alice and Bob",
             history_count=6,
-            histories=["hi", "hello", "how are you", "goodbye"]
+            histories=json.dumps(["hi", "hello", "how are you", "goodbye"])
         )
-        manager.set(context)
-        manager.reset("1234", username="Chris", agentname="Dave", chat_description="A conversation between Chris and Dave", history_count=10)
-        context = manager.get("1234")
+        session = get_session()
+        manager.set(session, context)
+        manager.reset(session, key, username="Chris", agentname="Dave", chat_description="A conversation between Chris and Dave", history_count=10)
+        context = manager.get(session, key)
         assert context.username == "Chris"
         assert context.agentname == "Dave"
         assert context.chat_description == "A conversation between Chris and Dave"
         assert context.history_count == 10
-        assert context.histories == []
+        assert context.histories == json.dumps([])
 
-    def test_remove(self):
+        session.close()
+
+    def test_remove(self, get_session):
+        key = str(uuid4())
+
         manager = ContextManager(
             timeout=300,
             username="Alice",
@@ -116,24 +138,28 @@ class TestContextManager:
             history_count=6,
         )
         context = Context(
-            key="1234",
+            key=key,
             username="Chris",
             agentname="Dave",
             chat_description="A conversation between Chris and Dave",
             history_count=10,
-            histories=["hi", "hello", "how are you", "goodbye"]
+            histories=json.dumps(["hi", "hello", "how are you", "goodbye"])
         )
-        manager.set(context)
-        assert manager.get("1234").key == "1234"
+        session = get_session()
+        manager.set(session, context)
+        assert manager.get(session, key).key == key
         assert context.username == "Chris"
         assert context.agentname == "Dave"
         assert context.chat_description == "A conversation between Chris and Dave"
         assert context.history_count == 10
 
-        manager.remove("1234")
-        context = manager.get("1234")
-        assert context.key == "1234"
+        print(key)
+        manager.remove(session, key)
+        context = manager.get(session, key)
+        assert context.key == key
         assert context.username == "Alice"
         assert context.agentname == "Bob"
         assert context.chat_description == "A conversation between Alice and Bob"
         assert context.history_count == 6
+
+        session.close()

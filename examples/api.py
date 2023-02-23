@@ -40,7 +40,7 @@ class ConfigContextResponse(BaseModel):
 
 class ConfigChatRequest(BaseModel):
     access_key: str = Field(..., title="Access key for configuration", example="pAsSw0Rd!", description="Access key for configuration")
-    engine: str = Field(None, title="Engine to use", example="text-davinci-003", description="Engine to use")
+    model: str = Field(None, title="AI model to use", example="text-davinci-003", description="AI model to use")
     temperature: float = Field(None, title="Temperature (OpenAI param)", example=0.5, description="Temperature (OpenAI param)")
     max_tokens: int = Field(None, title="Max tokens (OpenAI param)", example=2000, description="Max tokens (OpenAI param)")
     completion_params: dict = Field(None, title="Other OpenAI params", example={}, description="Other OpenAI params")
@@ -140,7 +140,7 @@ async def context_config(request: ConfigContextRequest):
     if request.history_count:
         context_manager.history_count = request.history_count
 
-    context_manager.contexts.clear()
+    context_manager.remove_all(contextual_chat.get_session())
 
     return ConfigContextResponse()
 
@@ -153,8 +153,8 @@ async def chat_config(request: ConfigChatRequest):
     if request.access_key != config_access_key:
         return JSONResponse(content={"error": "unauthorized"}, status_code=401)
 
-    if request.engine:
-        contextual_chat.engine = request.engine
+    if request.model:
+        contextual_chat.model = request.model
     if request.temperature:
         contextual_chat.temperature = request.temperature
     if request.max_tokens:
