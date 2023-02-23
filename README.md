@@ -18,7 +18,7 @@ from gpt3contextual import ContextualChat, ContextManager
 
 async def main():
     cm = ContextManager()
-    cc = ContextualChat("YOUR_OPENAI_APIKEY", cm)
+    cc = ContextualChat("YOUR_OPENAI_APIKEY", context_manager=cm)
 
     while True:
         text = input("Human> ")
@@ -72,6 +72,16 @@ See also https://platform.openai.com/docs/api-reference/completions to understan
 - `temperature`: float : What sampling temperature to use, between 0 and 2. Default=`0.5`.
 - `max_tokens`: int : The maximum number of tokens to generate in the completion. Default=`2000`.
 - `**completion_params`: Other parameters for completions if you want to set.
+
+Especially, to use other RDBMS instead of SQLite, set `connection_str` like bellow:
+
+```python
+cc = ContextualChat(
+    "YOUR_OPENAI_APIKEY",
+    connection_str="postgresql://user:password@host:port/dbname",
+    context_manager=cm
+)
+```
 
 
 # 💡 Tips
@@ -172,7 +182,7 @@ cm = ContextManager(
     agentname="妹",
     chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。"
 )
-cc = ContextualChat("YOUR_OPENAI_APIKEY", cm)
+cc = ContextualChat("YOUR_OPENAI_APIKEY", context_manager=cm)
 ```
 
 Prompt to be sent to OpenAI API is like bellow. `chat_description` is always set to the first line, no matter how many turns of conversation proceed.
