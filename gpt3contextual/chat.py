@@ -1,7 +1,7 @@
 from copy import deepcopy
 import json
 from datetime import datetime
-from openai import Completion
+from openai import Completion, ChatCompletion
 from openai.openai_object import OpenAIObject
 from sqlalchemy import create_engine, select, delete
 from sqlalchemy.orm import sessionmaker, Session
@@ -123,6 +123,18 @@ class ContextualChat:
                f"{context.get_histories()}\n" + \
                f"{context.username}:{text}\n{context.agentname}:"
 
+    def make_messages(self, context: Context, text: str) -> list[dict[str, str]]:
+        messages = []
+        messages.append({"role": "user", "content": context.chat_description})
+        user_turn = context.history_count % 2 == 0
+
+        for h in context.get_histories_as_list():
+            messages.append({"role": "user" if user_turn else "system", "content": h})
+
+        messages.append({"role": "user", "content": f"{context.username}:{text}"})
+
+        return messages
+
     def make_params(self, context: Context, prompt: str, completion_params: dict) -> dict:
         params = deepcopy(self.completion_params) if self.completion_params else {}
 
@@ -186,6 +198,45 @@ class ContextualChat:
         finally:
             session.close()
 
+    async def chatgpt(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
+        session = self.get_session()
+
+        try:
+            context = self.context_manager.get(session, context_key)
+            messages = self.make_messages(context, text)
+
+            params = {}
+            params["api_key"] = self.api_key
+            params["model"] = "gpt-3.5-turbo"
+            params["messages"] = messages
+
+            if not params.get("api_key"):
+                raise CompletionException("api_key is missing", completion_response=None)
+
+            try:
+                completion = await ChatCompletion.acreate(**params)
+            except Exception as ex:
+                raise CompletionException(str(ex), completion_response=None)
+
+            response_text = \
+                completion["choices"][0]["message"]["content"].strip() \
+                if "choices" in completion else None
+
+            if response_text.startswith(f"{context.agentname}:"):
+                response_text = response_text[len(context.agentname) + 1:]
+
+            self.save_log(session, response_text, params, completion, True)
+
+            self.update_context(session, context, text, response_text, completion)
+
+            return response_text, params, completion
+
+        except Exception as ex:
+            raise ex
+
+        finally:
+            session.close()
+
     def chat_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
         session = self.get_session()
 
@@ -218,10 +269,49 @@ class ContextualChat:
         finally:
             session.close()
 
-    def save_log(self, session: Session, response_text: str, params: dict, completion: dict):
+    def chatgpt_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
+        session = self.get_session()
+
+        try:
+            context = self.context_manager.get(session, context_key)
+            messages = self.make_messages(context, text)
+
+            params = {}
+            params["api_key"] = self.api_key
+            params["model"] = "gpt-3.5-turbo"
+            params["messages"] = messages
+
+            if not params.get("api_key"):
+                raise CompletionException("api_key is missing", completion_response=None)
+
+            try:
+                completion = ChatCompletion.create(**params)
+            except Exception as ex:
+                raise CompletionException(str(ex), completion_response=None)
+
+            response_text = \
+                completion["choices"][0]["message"]["content"].strip() \
+                if "choices" in completion else None
+
+            if response_text.startswith(f"{context.agentname}:"):
+                response_text = response_text[len(context.agentname) + 1:]
+
+            self.save_log(session, response_text, params, completion, True)
+
+            self.update_context(session, context, text, response_text, completion)
+
+            return response_text, params, completion
+
+        except Exception as ex:
+            raise ex
+
+        finally:
+            session.close()
+
+    def save_log(self, session: Session, response_text: str, params: dict, completion: dict, chatgpt: bool = False):
         history = CompletionLog(
             created_at=int(datetime.utcnow().timestamp()),
-            prompt=params["prompt"],
+            prompt=params["prompt"] if not chatgpt else json.dumps(params["messages"], ensure_ascii=False),
             text=response_text,
             parameters=json.dumps(params, ensure_ascii=False),
             completion=json.dumps(completion, ensure_ascii=False)

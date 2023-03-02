@@ -27,6 +27,10 @@ class Context(Base):
         history_list = json.loads(self.histories)
         return join_with.join(history_list[self.history_count * -1:])
 
+    def get_histories_as_list(self) -> list[str]:
+        history_list = json.loads(self.histories)
+        return history_list[self.history_count * -1:]
+
     def add_history(self, text: str):
         history_list = json.loads(self.histories)
         history_list.append(text)
