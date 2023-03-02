@@ -4,7 +4,7 @@ Contextual chat with ChatGPT / GPT-3 of OpenAI API.
 
 # ✨ ChatGPT is now available! [experimental]
 
-Install or update gpt3-contextual v0.6 to use ChatGPT API.
+Install or update gpt3-contextual v0.7 to use ChatGPT API.
 
 NOTE:
 - This feature is an experimental version.
@@ -55,19 +55,19 @@ human> Everything is fine, thank you.
 AI>  Great! Your order has been placed. Enjoy your meal!
 ```
 
-If you want to use ChatGPT, use `chatgpt` instead of `chat` like below:
+If you want to use ChatGPT, use `ContextualChatGTP` instead of `ContextualChat` like below:
 
 ```python
 import asyncio
-from gpt3contextual import ContextualChat, ContextManager
+from gpt3contextual import ContextualChatGTP, ContextManager
 
 async def main():
     cm = ContextManager()
-    cc = ContextualChat("YOUR_OPENAI_APIKEY", context_manager=cm)
+    cc = ContextualChatGTP("YOUR_OPENAI_APIKEY", context_manager=cm)
 
     while True:
         text = input("Human> ")
-        resp, prompt, completion = await cc.chatgpt("user1234567890", text)
+        resp, prompt, completion = await cc.chat("user1234567890", text)
         print(f"AI> {resp}")
 
 asyncio.run(main())

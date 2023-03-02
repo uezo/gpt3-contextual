@@ -94,14 +94,16 @@ class ContextManager:
         session.commit()
 
 
-class ContextualChat:
+class ContextualChatBase:
+    DEFAULT_MODEL = "text-davinci-003"
+
     def __init__(
         self,
         api_key: str,
         connection_str: str = "sqlite:///gpt3contextual.db",
         context_manager: ContextManager = None,
         *,
-        model: str = "text-davinci-003",
+        model: str = None,
         temperature: float = 0.5,
         max_tokens: int = 2000,
         **completion_params
@@ -113,38 +115,25 @@ class ContextualChat:
         create_tables(self.engine)
         self.get_session = sessionmaker(autocommit=False, autoflush=False, bind=self.engine)
         self.context_manager = context_manager or ContextManager()
-        self.model = model
+        self.model = model or self.DEFAULT_MODEL
         self.temperature = temperature
         self.max_tokens = max_tokens
         self.completion_params = completion_params
 
-    def make_prompt(self, context: Context, text: str) -> str:
-        return f"{context.chat_description}\n" + \
-               f"{context.get_histories()}\n" + \
-               f"{context.username}:{text}\n{context.agentname}:"
-
-    def make_messages(self, context: Context, text: str) -> list[dict[str, str]]:
-        messages = []
-        messages.append({"role": "user", "content": context.chat_description})
-        user_turn = context.history_count % 2 == 0
-
-        for h in context.get_histories_as_list():
-            messages.append({"role": "user" if user_turn else "system", "content": h})
-
-        messages.append({"role": "user", "content": f"{context.username}:{text}"})
-
-        return messages
-
-    def make_params(self, context: Context, prompt: str, completion_params: dict) -> dict:
+    def make_params(self, context: Context, *, prompt: str = None, messages: list[dict[str, str]] = None, completion_params: dict = None) -> dict:
         params = deepcopy(self.completion_params) if self.completion_params else {}
 
         params["api_key"] = self.api_key
         params["model"] = self.model
         params["temperature"] = self.temperature
         params["max_tokens"] = self.max_tokens
-        params["stop"] = [f"{context.username}:", f"{context.agentname}:"]
-        params["prompt"] = prompt
+        if prompt:
+            params["stop"] = [f"{context.username}:", f"{context.agentname}:"]
+            params["prompt"] = prompt
+        else:
+            params["messages"] = messages
 
+        # Overwrite on the fly
         if completion_params:
             for k, v in completion_params.items():
                 params[k] = v
@@ -166,30 +155,20 @@ class ContextualChat:
                 completion_response=completion
             )
 
-    async def chat(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
+    async def execute_completion_async(self, session: Session, context: Context, text: str, **completion_params):
+        raise NotImplementedError("execute_completion_async() in not implemented")
+
+    def execute_completion(self, session: Session, context: Context, text: str, **completion_params):
+        raise NotImplementedError("execute_completion() in not implemented")
+
+    async def chat(self, context_key: str, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
         session = self.get_session()
 
         try:
             context = self.context_manager.get(session, context_key)
-            prompt = self.make_prompt(context, text)
-            params = self.make_params(context, prompt, completion_params)
-
-            if not params.get("api_key"):
-                raise CompletionException("api_key is missing", completion_response=None)
-
-            try:
-                completion = await Completion.acreate(**params)
-            except Exception as ex:
-                raise CompletionException(str(ex), completion_response=None)
-
-            response_text = \
-                completion["choices"][0]["text"].strip() \
-                if "choices" in completion else None
-
+            response_text, params, completion = await self.execute_completion_async(session, context, text, **completion_params)
             self.save_log(session, response_text, params, completion)
-
             self.update_context(session, context, text, response_text, completion)
-
             return response_text, params, completion
 
         except Exception as ex:
@@ -198,69 +177,14 @@ class ContextualChat:
         finally:
             session.close()
 
-    async def chatgpt(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
+    def chat_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
         session = self.get_session()
 
         try:
             context = self.context_manager.get(session, context_key)
-            messages = self.make_messages(context, text)
-
-            params = {}
-            params["api_key"] = self.api_key
-            params["model"] = "gpt-3.5-turbo"
-            params["messages"] = messages
-
-            if not params.get("api_key"):
-                raise CompletionException("api_key is missing", completion_response=None)
-
-            try:
-                completion = await ChatCompletion.acreate(**params)
-            except Exception as ex:
-                raise CompletionException(str(ex), completion_response=None)
-
-            response_text = \
-                completion["choices"][0]["message"]["content"].strip() \
-                if "choices" in completion else None
-
-            if response_text.startswith(f"{context.agentname}:"):
-                response_text = response_text[len(context.agentname) + 1:]
-
-            self.save_log(session, response_text, params, completion, True)
-
-            self.update_context(session, context, text, response_text, completion)
-
-            return response_text, params, completion
-
-        except Exception as ex:
-            raise ex
-
-        finally:
-            session.close()
-
-    def chat_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
-        session = self.get_session()
-
-        try:
-            context = self.context_manager.get(session, context_key)
-            prompt = self.make_prompt(context, text)
-            params = self.make_params(context, prompt, completion_params)
-
-            if not params.get("api_key"):
-                raise CompletionException("api_key is missing", completion_response=None)
-
-            try:
-                completion = Completion.create(**params)
-            except Exception as ex:
-                raise CompletionException(str(ex), completion_response=None)
-
-            response_text = \
-                completion["choices"][0]["text"].strip() \
-                if "choices" in completion else None
-
+            response_text, params, completion = self.execute_completion(session, context, text, **completion_params)
             self.save_log(session, response_text, params, completion)
-
             self.update_context(session, context, text, response_text, completion)
-
             return response_text, params, completion
 
         except Exception as ex:
@@ -269,52 +193,117 @@ class ContextualChat:
         finally:
             session.close()
 
-    def chatgpt_sync(self, context_key: str, text: str, **completion_params) -> tuple[str, OpenAIObject]:
-        session = self.get_session()
-
-        try:
-            context = self.context_manager.get(session, context_key)
-            messages = self.make_messages(context, text)
-
-            params = {}
-            params["api_key"] = self.api_key
-            params["model"] = "gpt-3.5-turbo"
-            params["messages"] = messages
-
-            if not params.get("api_key"):
-                raise CompletionException("api_key is missing", completion_response=None)
-
-            try:
-                completion = ChatCompletion.create(**params)
-            except Exception as ex:
-                raise CompletionException(str(ex), completion_response=None)
-
-            response_text = \
-                completion["choices"][0]["message"]["content"].strip() \
-                if "choices" in completion else None
-
-            if response_text.startswith(f"{context.agentname}:"):
-                response_text = response_text[len(context.agentname) + 1:]
-
-            self.save_log(session, response_text, params, completion, True)
-
-            self.update_context(session, context, text, response_text, completion)
-
-            return response_text, params, completion
-
-        except Exception as ex:
-            raise ex
-
-        finally:
-            session.close()
-
-    def save_log(self, session: Session, response_text: str, params: dict, completion: dict, chatgpt: bool = False):
+    def save_log(self, session: Session, response_text: str, params: dict, completion: dict):
         history = CompletionLog(
             created_at=int(datetime.utcnow().timestamp()),
-            prompt=params["prompt"] if not chatgpt else json.dumps(params["messages"], ensure_ascii=False),
+            prompt=params["prompt"] if "prompt" in params else json.dumps(params["messages"], ensure_ascii=False),
             text=response_text,
             parameters=json.dumps(params, ensure_ascii=False),
             completion=json.dumps(completion, ensure_ascii=False)
         )
         session.add(history)
         session.commit()
+
+
+class ContextualChat(ContextualChatBase):
+    DEFAULT_MODEL = "text-davinci-003"
+
+    def make_prompt(self, context: Context, text: str) -> str:
+        return f"{context.chat_description}\n" + \
+               f"{context.get_histories()}\n" + \
+               f"{context.username}:{text}\n{context.agentname}:"
+
+    async def execute_completion_async(self, session: Session, context: Context, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
+        prompt = self.make_prompt(context, text)
+        params = self.make_params(context, prompt=prompt, **(completion_params or {}))
+
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = await Completion.acreate(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
+
+        response_text = \
+            completion["choices"][0]["text"].strip() \
+            if "choices" in completion else None
+
+        return response_text, params, completion
+
+    def execute_completion(self, session: Session, context: Context, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
+        prompt = self.make_prompt(context, text)
+        params = self.make_params(context, prompt=prompt, **(completion_params or {}))
+
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = Completion.create(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
+
+        response_text = \
+            completion["choices"][0]["text"].strip() \
+            if "choices" in completion else None
+
+        return response_text, params, completion
+
+
+class ContextualChatGPT(ContextualChatBase):
+    DEFAULT_MODEL = "gpt-3.5-turbo"
+
+    def make_messages(self, context: Context, text: str) -> list[dict[str, str]]:
+        messages = []
+        messages.append({"role": "system", "content": context.chat_description})
+        histories = context.get_histories_as_list()
+        turn_user = len(histories) % 2 == 0
+        for i in range(len(histories)):
+            messages.append({"role": "user" if turn_user else "assistant", "content": histories[i]})
+            turn_user = not turn_user
+
+        messages.append({"role": "user", "content": f"{context.username}:{text}"})
+
+        return messages
+
+    async def execute_completion_async(self, session: Session, context: Context, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
+        messages = self.make_messages(context, text)
+        params = self.make_params(context, messages=messages, **(completion_params or {}))
+
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = await ChatCompletion.acreate(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
+
+        response_text = \
+            completion["choices"][0]["message"]["content"].strip() \
+            if "choices" in completion else None
+
+        if response_text.startswith(f"{context.agentname}:"):
+            response_text = response_text[len(context.agentname) + 1:].strip()
+
+        return response_text, params, completion
+
+    def execute_completion(self, session: Session, context: Context, text: str, **completion_params) -> tuple[str, dict, OpenAIObject]:
+        messages = self.make_messages(context, text)
+        params = self.make_params(context, messages=messages, **(completion_params or {}))
+
+        if not params.get("api_key"):
+            raise CompletionException("api_key is missing", completion_response=None)
+
+        try:
+            completion = ChatCompletion.create(**params)
+        except Exception as ex:
+            raise CompletionException(str(ex), completion_response=None)
+
+        response_text = \
+            completion["choices"][0]["message"]["content"].strip() \
+            if "choices" in completion else None
+
+        if response_text.startswith(f"{context.agentname}:"):
+            response_text = response_text[len(context.agentname) + 1:].strip()
+
+        return response_text, params, completion

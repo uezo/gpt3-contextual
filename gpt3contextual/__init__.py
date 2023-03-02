@@ -1,5 +1,6 @@
 from .chat import (
     ContextualChat,
+    ContextualChatGPT,
     CompletionException,
     ContextManager
 )
