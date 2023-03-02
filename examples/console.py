@@ -1,6 +1,6 @@
 import asyncio
 from uuid import uuid4
-from gpt3contextual import ContextualChat, ContextManager
+from gpt3contextual import ContextualChatGPT, ContextManager
 
 
 """
@@ -37,7 +37,7 @@ async def main():
         # chat_description="これは兄と親しい妹との会話です。仲良しなので丁寧語を使わずに話してください。",
     )
 
-    cc = ContextualChat(
+    cc = ContextualChatGPT(
         openai_apikey,
         context_manager=cm
     )

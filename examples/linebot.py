@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request, BackgroundTasks
 from linebot import AsyncLineBotApi, WebhookParser
 from linebot.aiohttp_async_http_client import AiohttpAsyncHttpClient
 from linebot.models import MessageEvent, TextMessage
-from gpt3contextual import ContextualChat, ContextManager
+from gpt3contextual import ContextualChatGPT, ContextManager
 
 
 openai_apikey = "SET_YOUR_OPENAI_API_KEY"
@@ -30,7 +30,7 @@ context_manager = ContextManager(
     agentname="妹",
     chat_description="仲良しなので丁寧語を使わずに話してください。"
 )
-contextual_chat = ContextualChat(
+contextual_chat = ContextualChatGPT(
     openai_apikey,
     context_manager=context_manager
 )

@@ -5,7 +5,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from gpt3contextual import ContextualChat, ContextManager, CompletionException
+from gpt3contextual import ContextualChatGPT, ContextManager, CompletionException
 
 
 # Settings
@@ -15,12 +15,12 @@ config_access_key = "CHANGE_THIS_VALUE_AS_YOU_LIKE"
 
 # Schemas
 class ChatRequest(BaseModel):
-    text: str = Field(..., title="Request text", example="Hello", description="Request text from user to GPT-3")
+    text: str = Field(..., title="Request text", example="Hello", description="Request text from user to ChatGPT")
     completion_params: dict = Field(None, title="Parameters for Completion API", example={}, description="Parameters for Completion API")
 
 
 class ChatResponse(BaseModel):
-    text: str = Field(..., title="Response text", example="Hi", description="Response text from GPT-3 to user")
+    text: str = Field(..., title="Response text", example="Hi", description="Response text from ChatGPT to user")
     params: dict = Field(..., title="Actual parameters sent to Completion API", example={}, description="Actual parameters sent to Completion API")
     completion: dict = Field(..., title="Completion info", example={"choices": [{"text": "hi"}]}, description="Whole completion info from OpenAI")
 
@@ -67,7 +67,7 @@ context_manager = ContextManager(
     chat_description="仲良しなので丁寧語を使わずに話してください。"
 )
 
-contextual_chat = ContextualChat(
+contextual_chat = ContextualChatGPT(
     openai_apikey,
     context_manager=context_manager
 )
@@ -176,9 +176,9 @@ class OpenApiInfo:
             return self.cache
 
         openapi_info = get_openapi(
-            title="GPT-3 Contextual API",
-            version="0.5",
-            description="Contextual chat with GPT-3 of OpenAI API.",
+            title="ChatGPT Contextual API",
+            version="0.7",
+            description="Contextual chat with ChatGPT of OpenAI API.",
             servers=[{"description": "This Server", "url": "/"}],
             routes=self.app_routes
         )
