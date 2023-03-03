@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="gpt3-contextual",
-    version="0.7",
+    version="0.7.1",
     url="https://github.com/uezo/gpt3-contextual",
     author="uezo",
     author_email="uezo@uezo.net",
