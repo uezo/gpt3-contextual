@@ -22,7 +22,7 @@ class ContextManager:
         username: str = "Human",
         agentname: str = "AI",
         chat_description: str = None,
-        history_count: int = 6
+        history_count: int = 10
     ) -> None:
 
         self.timeout = timeout
@@ -143,8 +143,12 @@ class ContextualChatBase:
     def update_context(self, session: Session, context: Context, request_text: str, response_text: str, completion: dict):
         if response_text:
             # Add request and response to context
-            context.add_history(f"{context.username}:{request_text}")
-            context.add_history(f"{context.agentname}:{response_text}")
+            if completion["object"] == "chat.completion":
+                context.add_history(request_text)
+                context.add_history(response_text)
+            else:
+                context.add_history(f"{context.username}:{request_text}")
+                context.add_history(f"{context.agentname}:{response_text}")
             self.context_manager.set(session, context)
 
         else:
@@ -255,14 +259,17 @@ class ContextualChatGPT(ContextualChatBase):
 
     def make_messages(self, context: Context, text: str) -> list[dict[str, str]]:
         messages = []
-        messages.append({"role": "system", "content": context.chat_description})
+        messages.append({
+            "role": "system",
+            "content": f"[Roles]\nuser: {context.username}\nassistant: {context.agentname}\n\n[Conditions]\n{context.chat_description}"
+        })
         histories = context.get_histories_as_list()
         turn_user = len(histories) % 2 == 0
         for i in range(len(histories)):
             messages.append({"role": "user" if turn_user else "assistant", "content": histories[i]})
             turn_user = not turn_user
 
-        messages.append({"role": "user", "content": f"{context.username}:{text}"})
+        messages.append({"role": "user", "content": text})
 
         return messages
 
@@ -281,9 +288,6 @@ class ContextualChatGPT(ContextualChatBase):
         response_text = \
             completion["choices"][0]["message"]["content"].strip() \
             if "choices" in completion else None
-
-        if response_text.startswith(f"{context.agentname}:"):
-            response_text = response_text[len(context.agentname) + 1:].strip()
 
         return response_text, params, completion
 

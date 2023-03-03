@@ -113,7 +113,7 @@ class TestContextualChat:
 
         with get_session() as session:
             cm.set(session, context)
-            cc.update_context(session, context, "hello", "hi", {})
+            cc.update_context(session, context, "hello", "hi", {"object": "text_completion"})
 
             context = cm.get(session, key)
             assert context.username == "A"
@@ -174,12 +174,12 @@ class TestContextualChatGPT:
             agentname="B",
             chat_description="A conversation between A and B",
             history_count=4,
-            histories=json.dumps(["A:line01", "B:line02", "A:line03", "B:line04", "A:line05", "B:line06", "A:line07", "B:line08"])
+            histories=json.dumps(["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"])
         )
 
         messages = cc.make_messages(context, "hello")
 
-        assert messages == [{"role": "system", "content": "A conversation between A and B"}, {"role": "user", "content": "A:line05"}, {"role": "assistant", "content": "B:line06"}, {"role": "user", "content": "A:line07"}, {"role": "assistant", "content": "B:line08"}, {"role": "user", "content": "A:hello"}]
+        assert messages == [{"role": "system", "content": "[Roles]\nuser: A\nassistant: B\n\n[Conditions]\nA conversation between A and B"}, {"role": "user", "content": "line05"}, {"role": "assistant", "content": "line06"}, {"role": "user", "content": "line07"}, {"role": "assistant", "content": "line08"}, {"role": "user", "content": "hello"}]
 
     def test_make_params(self):
         key = str(uuid4())
@@ -242,19 +242,19 @@ class TestContextualChatGPT:
             agentname="B",
             chat_description="A conversation between A and B",
             history_count=4,
-            histories=json.dumps(["A:line01", "B:line02", "A:line03", "B:line04", "A:line05", "B:line06", "A:line07", "B:line08"])
+            histories=json.dumps(["line01", "line02", "line03", "line04", "line05", "line06", "line07", "line08"])
         )
 
         with get_session() as session:
             cm.set(session, context)
-            cc.update_context(session, context, "hello", "hi", {})
+            cc.update_context(session, context, "hello", "hi", {"object": "chat.completion"})
 
             context = cm.get(session, key)
             assert context.username == "A"
             assert context.agentname == "B"
             assert context.chat_description == "A conversation between A and B"
             assert context.history_count == 4
-            assert context.get_histories() == "A:line07\nB:line08\nA:hello\nB:hi"
+            assert context.get_histories() == "line07\nline08\nhello\nhi"
 
             with pytest.raises(CompletionException):
                 cc.update_context(session, context, "hello", None, {"foo": "bar"})
@@ -277,7 +277,7 @@ class TestContextualChatGPT:
             agentname="B",
             chat_description="Just echo the text from A",
             history_count=4,
-            histories=json.dumps(["A:line01", "B:line01", "A:line02", "B:line02", "A:line03", "B:line03", "A:line04", "B:line04"])
+            histories=json.dumps(["line01", "line01", "line02", "line02", "line03", "line03", "line04", "line04"])
         )
 
         with get_session() as session:
@@ -286,11 +286,11 @@ class TestContextualChatGPT:
         resp, params, _ = cc.chat_sync(key, "hello")
 
         assert resp == "hello"
-        assert params["messages"] == [{"role": "system", "content": "Just echo the text from A"}, {"role": "user", "content": "A:line03"}, {"role": "assistant", "content": "B:line03"}, {"role": "user", "content": "A:line04"}, {"role": "assistant", "content": "B:line04"}, {"role": "user", "content": "A:hello"}]
+        assert params["messages"] == [{"role": "system", "content": "[Roles]\nuser: A\nassistant: B\n\n[Conditions]\nJust echo the text from A"}, {"role": "user", "content": "line03"}, {"role": "assistant", "content": "line03"}, {"role": "user", "content": "line04"}, {"role": "assistant", "content": "line04"}, {"role": "user", "content": "hello"}]
         with get_session() as session:
             context = cm.get(session, key)
             assert context.username == "A"
             assert context.agentname == "B"
             assert context.chat_description == "Just echo the text from A"
             assert context.history_count == 4
-            assert context.get_histories() == "A:line04\nB:line04\nA:hello\nB:hello"
+            assert context.get_histories() == "line04\nline04\nhello\nhello"

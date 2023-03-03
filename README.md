@@ -2,9 +2,7 @@
 
 Contextual chat with ChatGPT / GPT-3 of OpenAI API.
 
-# ✨ ChatGPT is now available! [experimental]
-
-Install or update gpt3-contextual v0.7 to use ChatGPT API.
+# ✨ ChatGPT is now available!
 
 NOTE:
 - This feature is an experimental version.
@@ -163,6 +161,8 @@ Enjoy your own contextual GPT-3 API👍
 
 
 # 🥪 How it works
+
+**This chapter is based on `text-davinci-003`**
 
 As you know, `Completion` endpoint doesn't provide the features for keep and use context.
 So, simply, this library send the previous conversation histories with the request text like below.
