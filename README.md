@@ -57,11 +57,11 @@ If you want to use ChatGPT, use `ContextualChatGTP` instead of `ContextualChat` 
 
 ```python
 import asyncio
-from gpt3contextual import ContextualChatGTP, ContextManager
+from gpt3contextual import ContextualChatGPT, ContextManager
 
 async def main():
     cm = ContextManager()
-    cc = ContextualChatGTP("YOUR_OPENAI_APIKEY", context_manager=cm)
+    cc = ContextualChatGPT("YOUR_OPENAI_APIKEY", context_manager=cm)
 
     while True:
         text = input("Human> ")
